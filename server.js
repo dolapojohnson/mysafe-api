@@ -3,8 +3,10 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const Cryptr = require('cryptr');
 const User = require('./models/userModel');
 const Bank = require('./models/passcodebank.js');
+const cryptr = new Cryptr('mySecretKey');
 
 
 //Mongo DEPRECATION
@@ -36,7 +38,7 @@ mongoose.connection.once('open', function(){
 
 
 
-                                                                  //ENDPOINT - SIGNIN
+                //ENDPOINT - SIGNIN
 app.post('/signin', (req, res) => {
   const SignIn = {
     email: req.body.email,
@@ -47,11 +49,14 @@ app.post('/signin', (req, res) => {
     email: SignIn.email
   })
   .then(user => {
-    console.log('Here worked!')
     if (user) {
       async function compHash() {
         const compareValues = await bcrypt.compare(SignIn.password, user.password);
-        (compareValues) ? res.status(200).json(compareValues)
+        (compareValues) ? res.status(200).json({
+          id: user._id,
+          name: user.name,
+          email: user.email
+        })
         : res.json('Invalid password!')
       }
       compHash();
@@ -67,7 +72,7 @@ app.post('/signin', (req, res) => {
 
 
 
-                                                                    //ENDPOINT - REGISTER
+                  //ENDPOINT - REGISTER
 app.post('/register', (req, res) => {
   const today = new Date();
 
@@ -102,27 +107,55 @@ app.post('/register', (req, res) => {
 
  
 
-                                      //COLLECT USER INPUTS
+                //COLLECT USER INPUTS
 app.post('/store', (req, res) => {
   const created = new Date();
   // const userId = user._id;
   const Storex = {
     platform: req.body.platform,
+    userId: req.body.userId,
     email: req.body.email,
     password: req.body.password,
     created: created
   }
 
-  let user = new Bank(Storex)
-  user.save(Storex).then((err) => {
+  async function encryptNSave() {
+    const encryptedString = await cryptr.encrypt(Storex.password);
+    Storex.password = encryptedString;
+    let user = new Bank(Storex);
+    user.save(Storex).then((err) => {
+      if (err) {
+        res.json(err)
+      } else {
+        res.json(Storex)
+      }
+    })
+  }
+
+  encryptNSave();
+  
+})
+                                   
+
+            //SEND CREDENTIALS TO THE FRONTEND 
+app.get('/credentials', (req, res) => {
+console.log(req.query.userId);
+  Bank.find({
+    userId: req.query.userId
+  })
+  .then((err, data) => {
     if (err) {
+
       res.json(err)
     } else {
-      res.json('Save successful')
+console.log(data);
+      res.json(data)
     }
   })
 })
-                                                                    //LISTEN ON PORT
+
+
+//LISTEN ON PORT
 app.listen(3001, () => {
   console.log('app is running on port 3001');
 })
